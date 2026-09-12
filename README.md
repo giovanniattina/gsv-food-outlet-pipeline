@@ -4,8 +4,8 @@ Inference pipeline for classifying Google Street View panoramas as food purchasi
 places (healthy vs. unhealthy) in informal settlements, combining a DINOv2-based
 visual classifier with OCR-based signage text matching.
 
-This is the Stage 2 (food-health classification) and Stage 3 (OCR late fusion)
-inference code from:
+This is the Stage 1 (urban-function filter), Stage 2 (food-health classification), and
+Stage 3 (OCR late fusion) inference code from:
 
 > Nascimento, G. A., Giannotti, M. A., Fernandes, C. N. "Mapping food outlets with
 > deep learning and street view images" (submitted to *Computers, Environment and
