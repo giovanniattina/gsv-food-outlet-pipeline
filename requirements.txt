@@ -1,0 +1,12 @@
+torch>=2.1
+torchvision>=0.16
+transformers>=4.40
+numpy>=1.26
+pandas>=2.0
+scipy>=1.11
+Pillow>=10.0
+opencv-python>=4.9
+rapidfuzz>=3.0
+tqdm>=4.66
+paddlepaddle>=2.6
+paddleocr>=2.7
