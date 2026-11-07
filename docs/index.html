@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GSV Food Outlets</title>
+<meta name="description" content="Portfolio: mapping food outlets in informal settlements with Google Street View, DINOv2 and OCR.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+html{color-scheme:light dark}body{margin:0}
+/* Layout: sticky tab bar over one scrolling column; each tab is a "stage" of the project, routed on the hash. */
+:root{
+  --bg:#f2f5f3; --surface:#ffffff; --ink:#13201b; --muted:#52615b; --line:#d5ddd8;
+  --accent:#0d6b53; --accent-soft:#d9ece5; --warn:#b4551c; --bad:#a83a32;
+  --c-commercial:#0d8a68; --c-residential:#c9822b; --c-education:#3e6fb5; --c-industrial:#8a6fa3; --c-outdoors_natural:#7a9a2e; --c-transportation:#b5483e; --c-non:#6b7c88;
+  --font-display:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;
+  --font-body:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1613; --surface:#16211d; --ink:#e6eee9; --muted:#9db0a8; --line:#2b3a34;
+  --accent:#4fc3a1; --accent-soft:#17352c; --warn:#e59a62; --bad:#ec8179;
+  --c-commercial:#3ec9a0; --c-residential:#e0a352; --c-education:#7aa2e3; --c-industrial:#b79ccf; --c-outdoors_natural:#a3c45a; --c-transportation:#e17f74; --c-non:#8fa0ac; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1613; --surface:#16211d; --ink:#e6eee9; --muted:#9db0a8; --line:#2b3a34;
+  --accent:#4fc3a1; --accent-soft:#17352c; --warn:#e59a62; --bad:#ec8179;
+  --c-commercial:#3ec9a0; --c-residential:#e0a352; --c-education:#7aa2e3; --c-industrial:#b79ccf; --c-outdoors_natural:#a3c45a; --c-transportation:#e17f74; --c-non:#8fa0ac; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:400 16px/1.6 var(--font-body);padding-block:0;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:30}
+.wrap{max-width:1040px;margin:0 auto}
+h1,h2,h3{font-family:var(--font-display);line-height:1.12;text-wrap:balance;margin:0}
+h1{font-size:clamp(2rem,5.2vw,3.4rem);font-weight:700;letter-spacing:-.02em}
+h2{font-size:clamp(1.4rem,3vw,1.9rem);font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.1rem;font-weight:700}
+p{margin:0;max-width:66ch}
+a{color:var(--accent)}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.eyebrow{font:500 .75rem/1 var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+/* tab bar */
+header.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding-inline:max(16px,env(safe-area-inset-left,0px))}
+.bar .wrap{display:flex;align-items:center;gap:20px;min-height:56px;flex-wrap:wrap;padding-block:6px}
+.brand{font:700 1rem/1 var(--font-display);white-space:nowrap}
+.brand span{color:var(--accent)}
+nav{display:flex;gap:2px;overflow-x:auto;margin-left:auto;max-width:100%}
+nav a{font:500 .88rem/1 var(--font-body);color:var(--muted);text-decoration:none;padding:12px 14px;border-radius:6px;white-space:nowrap}
+nav a:hover{color:var(--ink);background:var(--accent-soft)}
+nav a[aria-current="page"]{color:var(--ink);box-shadow:inset 0 -2px 0 var(--accent)}
+nav a:focus-visible,button:focus-visible,.seg label:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+
+main{padding-block:40px 80px}
+section.tab{display:none;flex-direction:column;gap:44px}
+section.tab.on{display:flex}
+.lede{font-size:1.15rem;color:var(--muted);margin-top:14px}
+.block{display:flex;flex-direction:column;gap:16px;min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:20px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;min-width:0}
+.proto{font:500 .75rem/1.4 var(--font-mono);color:var(--warn);border:1px dashed var(--warn);border-radius:6px;padding:8px 10px;max-width:none}
+
+/* home */
+.hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:36px;align-items:center}
+@media(max-width:760px){.hero{grid-template-columns:1fr}}
+.hero-fig{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.hero-fig canvas{display:block;width:100%;height:auto}
+.hero-fig figcaption{padding:10px 14px;font:400 .78rem/1.4 var(--font-mono);color:var(--muted);border-top:1px solid var(--line)}
+.story{display:grid;gap:0;border-left:2px solid var(--line);margin-left:6px}
+.story .step{padding:0 0 26px 24px;position:relative}
+.story .step::before{content:"";position:absolute;left:-7px;top:7px;width:12px;height:12px;border-radius:50%;background:var(--accent);border:3px solid var(--bg)}
+.story h3{margin-bottom:6px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.stat{border-top:2px solid var(--ink);padding-top:10px}
+.stat b{display:block;font:700 2rem/1.1 var(--font-display);font-variant-numeric:tabular-nums}
+.stat span{font-size:.85rem;color:var(--muted)}
+.flow{display:flex;gap:8px;flex-wrap:wrap;align-items:stretch}
+.node{flex:1 1 170px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px;text-decoration:none;color:inherit}
+.node:hover{border-color:var(--accent)}
+.node .k{font:500 .72rem/1 var(--font-mono);color:var(--accent);letter-spacing:.08em}
+.node small{color:var(--muted);font-size:.82rem;line-height:1.4}
+.arrow{align-self:center;color:var(--muted);font-family:var(--font-mono)}
+@media(max-width:560px){.arrow{display:none}}
+
+/* controls */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg label{padding:8px 14px;font:500 .85rem/1 var(--font-body);cursor:pointer;color:var(--muted);border-right:1px solid var(--line)}
+.seg label:last-child{border-right:0}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg input:checked+span{color:var(--ink)}
+.seg label:has(input:checked){background:var(--accent-soft);color:var(--ink)}
+.row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.legend{display:flex;gap:6px 16px;flex-wrap:wrap;font-size:.85rem}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+
+/* charts */
+.chart{width:100%;height:auto;display:block;overflow:visible}
+.chart text{fill:var(--muted);font:400 11px var(--font-mono)}
+.chart .lbl{fill:var(--ink);font:500 12px var(--font-body)}
+.scroll{overflow-x:auto}
+.tip{position:fixed;z-index:40;pointer-events:none;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px;box-shadow:0 6px 24px rgba(0,0,0,.18);font:400 .78rem/1.35 var(--font-mono);display:none;max-width:210px}
+.tip .th{width:96px;height:96px;border-radius:4px;background-repeat:no-repeat;margin-bottom:6px}
+
+/* dataset */
+.bars{display:grid;gap:8px}
+.bar-row{display:grid;grid-template-columns:150px minmax(0,1fr) 44px;gap:10px;align-items:center;font-size:.88rem}
+.bar-row .t{height:12px;background:var(--line);border-radius:3px;overflow:hidden}
+.bar-row .t i{display:block;height:100%;border-radius:3px}
+@media(max-width:520px){.bar-row{grid-template-columns:110px minmax(0,1fr) 36px}}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
+.gallery figure{margin:0;position:relative}
+.gallery .im{aspect-ratio:1;border-radius:6px;background-repeat:no-repeat;background-color:var(--line)}
+.gallery figcaption{font:400 .68rem/1.3 var(--font-mono);color:var(--muted);margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 .72rem/1.2 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+td.n,th.n{text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.chip{display:inline-block;font:500 .72rem/1 var(--font-mono);padding:4px 7px;border-radius:4px;background:var(--accent-soft);color:var(--ink)}
+.chip.g0,.chip.g1g2{background:color-mix(in srgb,var(--c-commercial) 22%,transparent)}
+.chip.g3,.chip.g4{background:color-mix(in srgb,var(--c-residential) 26%,transparent)}
+.note{font-size:.85rem;color:var(--muted)}
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:14px 16px;border-radius:0 8px 8px 0}
+.callout.warn{border-color:var(--warn)}
+
+/* results */
+.cm{display:grid;grid-template-columns:auto repeat(2,minmax(70px,1fr));gap:4px;font:500 .85rem var(--font-mono);max-width:320px}
+.cm div{padding:12px 8px;text-align:center;border-radius:6px}
+.cm .h{color:var(--muted);font-size:.7rem;padding:4px;background:none}
+.cm .ok{background:color-mix(in srgb,var(--accent) 30%,transparent)}
+.cm .no{background:color-mix(in srgb,var(--bad) 28%,transparent)}
+.sal{width:100%;border-radius:8px;border:1px solid var(--line);display:block}
+.pending{border:1px dashed var(--line);border-radius:10px;padding:20px;color:var(--muted)}
+footer{border-top:1px solid var(--line);padding-block:20px 40px;color:var(--muted);font-size:.85rem}
+@media(prefers-reduced-motion:no-preference){section.tab.on{animation:in .25s ease-out}@keyframes in{from{opacity:.4;transform:translateY(6px)}}}
+</style>
+
+</head>
+<body>
+<header class="bar"><div class="wrap">
+  <div class="brand">GSV <span>Food Outlets</span></div>
+  <nav aria-label="Project stages" id="nav">
+    <a href="#home" data-t="home">Home</a>
+    <a href="#dataset" data-t="dataset">1 · Dataset</a>
+    <a href="#embeddings" data-t="embeddings">2 · Embeddings</a>
+    <a href="#models" data-t="models">3 · Model choice</a>
+    <a href="#ocr" data-t="ocr">4 · OCR</a>
+    <a href="#results" data-t="results">5 · Results</a>
+    <a href="#rais" data-t="rais">6 · vs RAIS</a>
+  </nav>
+</div></header>
+
+<div class="wrap"><main>
+
+<!-- ============ HOME ============ -->
+<section class="tab" id="t-home">
+  <div class="hero">
+    <div class="block">
+      <span class="eyebrow">Master's research · Street View · informal settlements</span>
+      <h1>The corner shops that no registry counts</h1>
+      <p class="lede">In informal settlements, much of the food people buy comes from stalls, street vendors and small markets. Official and commercial databases rarely list them. This project finds them in Google Street View, then measures how much each database misses.</p>
+    </div>
+    <figure class="hero-fig" style="margin:0">
+      <canvas id="heroCanvas" width="640" height="480" aria-label="Street View crops in a grid"></canvas>
+      <figcaption>12 of the 558 annotated Street View crops (Brazil). Imagery © Google.</figcaption>
+    </figure>
+  </div>
+
+  <div class="block">
+    <h2>The story in four steps</h2>
+    <div class="story">
+      <div class="step"><h3>The gap</h3><p>RAIS, the official register of formal establishments, only records registered shops. A fruit stand in a doorway or a street vendor has no entry, so food access in these areas looks worse than it is.</p></div>
+      <div class="step"><h3>The idea</h3><p>Street View already shows these places. A classifier can read the storefront and the facade text, label each place as a healthy or unhealthy food source, and add what the official register misses.</p></div>
+      <div class="step"><h3>The pipeline</h3><p>Three stages in sequence. Stage 1 keeps only commercial facades. Stage 2 labels the food source. Stage 3 reads the signage with OCR and fuses it with the image prediction.</p></div>
+      <div class="step"><h3>The measurement</h3><p>Detected outlets are compared with RAIS, the official register, to quantify how many food outlets it leaves out.</p></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>Pipeline</h2>
+    <div class="flow">
+      <a class="node" href="#embeddings"><span class="k">STAGE 1 · S02</span><b>Commercial or not</b><small>DINOv2-Large + MLP. Non-commercial crops stop here.</small></a>
+      <span class="arrow">→</span>
+      <a class="node" href="#results"><span class="k">STAGE 2 · U02</span><b>Healthy or unhealthy</b><small>DINOv2-Large + MLP on commercial crops.</small></a>
+      <span class="arrow">→</span>
+      <a class="node" href="#ocr"><span class="k">STAGE 3 · OCR</span><b>Read the signage</b><small>PaddleOCR keywords, late fusion with Stage 2.</small></a>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>At a glance</h2>
+    <div class="stats" id="homeStats"></div>
+  </div>
+</section>
+
+<!-- ============ DATASET ============ -->
+<section class="tab" id="t-dataset">
+  <div class="block">
+    <span class="eyebrow">Part 1 of 6</span>
+    <h1 style="font-size:clamp(1.8rem,4vw,2.6rem)">The dataset</h1>
+    <p class="lede">558 Street View crops from informal settlements, each annotated by hand with an urban function. Commercial crops also carry an urban object (the type of food outlet) and the text visible on the facade.</p>
+  </div>
+
+  <div class="grid2">
+    <div class="panel block"><h3>Urban function · n=558</h3><div class="bars" id="barsFn"></div>
+      <p class="note">Stage 1 collapses this into commercial (333) versus non-commercial (225).</p></div>
+    <div class="panel block"><h3>Commercial crops by outlet type · n=333</h3><div class="bars" id="barsObj"></div>
+      <p class="note">171 commercial crops are <span class="mono">others</span>: a storefront with no food profile. They are left out of the food metrics.</p></div>
+  </div>
+
+  <div class="block">
+    <h2>From outlet type to food label</h2>
+    <p>Each of the 162 food outlets maps to one of four groups (NOVA-based, Locais-Nova framework). Groups g0 and g1g2 count as healthy; g3 and g4 as unhealthy.</p>
+    <div class="scroll"><table id="mapTable"></table></div>
+    <div class="callout"><b>Informal-settlements market</b> is a class added for this study. It is the one these databases are least likely to hold, so it matters most for the research question. It has only 9 examples.</div>
+  </div>
+
+  <div class="block">
+    <h2>Browse the crops</h2>
+    <div class="row"><div class="seg" role="radiogroup" aria-label="Filter crops" id="galSeg"></div></div>
+    <div class="gallery" id="gallery"></div>
+    <p class="note">A sample of 12 crops, cut to a square from the original 4-heading panoramas. The full image set is not redistributed. Imagery © Google.</p>
+  </div>
+</section>
+
+<!-- ============ EMBEDDINGS ============ -->
+<section class="tab" id="t-embeddings">
+  <div class="block">
+    <span class="eyebrow">Part 2 of 6</span>
+    <h1 style="font-size:clamp(1.8rem,4vw,2.6rem)">What the model sees</h1>
+    <p class="lede">Each image becomes a 1,024-number vector from DINOv2-Large, the backbone Stage 1 uses. PCA squeezes those vectors to two axes so you can look at them.</p>
+  </div>
+  <div class="panel block">
+    <div class="row" style="justify-content:space-between">
+      <div class="seg" role="radiogroup" aria-label="Colour by" id="pcaSeg"></div>
+      <div class="legend" id="pcaLegend"></div>
+    </div>
+    <div class="scroll"><svg class="chart" id="pca" viewBox="0 0 900 520" role="img" aria-label="PCA scatter of DINOv2-L embeddings"></svg></div>
+    <p class="note mono" id="pcaNote"></p>
+    <p class="note">Hover a point for its class; the 12 points with a sample crop also show the image. n=558, all images, DINOv2-Large CLS token, no training involved.</p>
+  </div>
+  <div class="callout" id="pcaRead"></div>
+</section>
+
+<!-- ============ MODELS ============ -->
+<section class="tab" id="t-models">
+  <div class="block">
+    <span class="eyebrow">Part 3 of 6</span>
+    <h1 style="font-size:clamp(1.8rem,4vw,2.6rem)">How the model was chosen</h1>
+    <p class="lede">Stage 1 had one job: keep commercial crops and drop the rest. We compared 48 setups across three model families and picked on one priority, commercial recall, because a missed storefront is a missed food outlet.</p>
+  </div>
+
+  <div class="block">
+    <h2>1 · Which family fits?</h2>
+    <p>Each dot is one setup. Circles were scored on all 558 images with no training. Squares are the supervised model on a held-out set of 112 images (5-seed mean), so the two shapes are not a like-for-like race.</p>
+    <div class="row">
+      <div class="seg" role="radiogroup" aria-label="Task form" id="formSeg"></div>
+    </div>
+    <div class="panel"><div class="scroll"><svg class="chart" id="strip" viewBox="0 0 900 330" role="img" aria-label="F1 by model family"></svg></div></div>
+  </div>
+
+  <div class="block">
+    <h2>2 · Which prompts help the CLIP models?</h2>
+    <p>Prompt P3 lists concrete urban objects behind each class, then averages them. It beats plain templates (P2) by 10 to 15 points of F1 on every CLIP variant. Binary task, n=558.</p>
+    <div class="panel"><div class="scroll"><svg class="chart" id="prompts" viewBox="0 0 900 300" role="img" aria-label="F1 by prompt"></svg></div></div>
+  </div>
+
+  <div class="block">
+    <h2>3 · The decision</h2>
+    <div class="scroll"><table id="decision"></table></div>
+    <div class="callout" id="decisionNote"></div>
+  </div>
+</section>
+
+<!-- ============ OCR ============ -->
+<section class="tab" id="t-ocr">
+  <div class="block">
+    <span class="eyebrow">Part 4 of 6 · Pipeline stage 3</span>
+    <h1 style="font-size:clamp(1.8rem,4vw,2.6rem)">Reading the signs</h1>
+    <p class="lede">Many Brazilian storefronts name what they sell: "Padaria", "Açougue", "Mercadinho". Stage 3 reads that text with OCR, matches it against a food vocabulary and blends the result with the image prediction.</p>
+  </div>
+
+  <div class="block">
+    <h2>How a facade becomes a label</h2>
+    <div class="flow">
+      <div class="node"><span class="k">1 · OCR</span><b>PaddleOCR</b><small>Finds text regions and reads them.</small></div><span class="arrow">→</span>
+      <div class="node"><span class="k">2 · CLEAN</span><b>Normalise tokens</b><small>Lowercase, strip accents and OCR noise.</small></div><span class="arrow">→</span>
+      <div class="node"><span class="k">3 · MATCH</span><b>Fuzzy keywords</b><small>Jaro-Winkler similarity ≥ 0.85 against a Portuguese food vocabulary.</small></div><span class="arrow">→</span>
+      <div class="node"><span class="k">4 · FUSE</span><b>Blend with image</b><small>p = 0.5·p<sub>image</sub> + 0.5·p<sub>ocr</sub>. If OCR finds nothing, the image decides alone.</small></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>Fuzzy matching: try the threshold</h2>
+    <p>OCR misreads letters, so matching must forgive small errors. Too loose and unrelated words match. These are real tokens from two crops in the Stage 3 error analysis. Move the threshold to see which matches survive.</p>
+    <div class="panel block">
+      <div class="row" style="justify-content:space-between">
+        <div class="seg" role="radiogroup" aria-label="Example crop" id="ocrSeg"></div>
+        <label class="row" for="thr" style="gap:10px"><span class="mono" style="font-size:.85rem">Similarity threshold</span>
+          <input id="thr" type="range" min="0.70" max="1" step="0.01" value="0.85" style="accent-color:var(--accent);width:180px"><b class="mono" id="thrVal">0.85</b></label>
+      </div>
+      <div class="grid2" style="align-items:start">
+        <figure style="margin:0;display:flex;flex-direction:column;gap:6px"><img class="sal" id="ocrImg" src="data/ocr_example.jpg" alt="Street View crop of a bakery facade" loading="lazy"><figcaption class="note" id="ocrCap"></figcaption></figure>
+        <div class="scroll"><table id="ocrTable"></table><p class="note" id="ocrOut" style="margin-top:12px"></p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>Where text exists, and where it doesn't</h2>
+    <p>Share of food-outlet crops whose facade carries readable text (annotated by hand). Fixed storefronts mostly have a sign. The two classes the study cares about most mostly don't.</p>
+    <div class="panel"><div class="bars" id="textShare"></div></div>
+    <div class="callout warn">OCR cannot see what has no sign. Informal-settlements markets (2 of 9 with text) and street vendors (2 of 12) are the places the databases miss, and the signage branch adds almost nothing for them. The image branch has to carry those classes.</div>
+  </div>
+
+  <div class="block">
+    <h2>How the fusion rule was compared</h2>
+    <p>Ten ways of combining OCR and image scores, scored on the same 162 food crops with the 11-outlet-type labels. Hover for the setup ID. A plain weighted average at α=0.5 is what the pipeline deploys.</p>
+    <div class="panel"><div class="scroll"><svg class="chart" id="fusion" viewBox="0 0 900 360" role="img" aria-label="F1 by fusion rule"></svg></div></div>
+    <p class="note">Single run, F1-macro over 11 classes, n=162. Classes are small (9 to 48 crops), so differences of a few points are within noise. Stacking uses 5-fold cross-validation.</p>
+  </div>
+
+  <div class="block">
+    <h2>What OCR does when it finds nothing</h2>
+    <p>The deployed rule is: no keyword match means the image prediction stands. An earlier variant (Stage 3B) did the opposite and called silent facades <span class="mono">others</span>. On a set of 212 crops (162 food plus 50 others), OCR was silent on 58 of them with Jaro-Winkler at 0.85. That variant pushes sign-less vendors into <span class="mono">others</span>, and the deployed pipeline does not use it.</p>
+    <div class="callout"><b>Why the weighted average.</b> It was chosen for accuracy: 0.562 for the weighted average at α=0.5 against 0.556 for the OR-gate (n=162, 11 classes). The OR-gate scores slightly higher on F1-macro (0.498 against 0.490), and the two are close.</div>
+  </div>
+</section>
+
+<!-- ============ RESULTS ============ -->
+<section class="tab" id="t-results">
+  <div class="block">
+    <span class="eyebrow">Part 5 of 6</span>
+    <h1 style="font-size:clamp(1.8rem,4vw,2.6rem)">Final results, and a look inside</h1>
+    <p class="lede">The deployed pipeline chains three stages. Each one is scored on its own held-out set, and the sets are small, so every score is shown with its n and absolute counts.</p>
+  </div>
+
+  <div class="grid2">
+    <div class="panel block">
+      <span class="chip">STAGE 1 · S02</span><h3>Commercial vs non-commercial</h3>
+      <div class="stats"><div class="stat"><b>0.929</b><span>F1-macro, 5-seed mean ± 0.010</span></div><div class="stat"><b>0.949</b><span>commercial recall</span></div></div>
+      <p class="note">Held-out n=112 (67 commercial, 45 non-commercial). Confusion matrix, seed 42:</p>
+      <div class="cm" id="cm1"></div>
+    </div>
+    <div class="panel block">
+      <span class="chip">STAGE 2 · U02</span><h3>Healthy vs unhealthy</h3>
+      <div class="stats"><div class="stat"><b>0.686</b><span>F1-binary, 5-seed mean</span></div><div class="stat"><b>3 of 9</b><span>unhealthy shops called healthy (best seed)</span></div></div>
+      <p class="note">Held-out n=33 (24 healthy, 9 unhealthy). Confusion matrix, best seed (100):</p>
+      <div class="cm" id="cm2"></div>
+    </div>
+  </div>
+  <div class="pending"><b>STAGE 3 · OCR fusion</b> — final score pending. The fused healthy/unhealthy score for the deployed binary pipeline is not in the metric files. The method and the 11-class fusion comparison are on the <a href="#ocr">OCR tab</a>. Rule: <span class="mono">p = 0.5·p_image + 0.5·p_ocr</span> when OCR finds a keyword, otherwise the image prediction stands.</div>
+  <p class="note">The costly error is an unhealthy outlet read as healthy: it overstates food access and hides food swamps. With 9 unhealthy examples in the test set, treat Stage 2 as a proof of concept.</p>
+
+  <div class="block">
+    <h2>Opening the model</h2>
+    <p>Two ways of asking Stage 1 where it looked. Occlusion saliency hides patches and measures how the score drops. Attention rollout traces the ViT's attention to the input. Warm colours mean more influence. Rows show a correct commercial call, a correct non-commercial call, and the two kinds of error.</p>
+    <img class="sal" id="salImg" src="data/saliency.jpg" alt="Occlusion saliency and attention rollout for four example crops" loading="lazy">
+    <div class="grid2">
+      <div class="panel"><b>Hits</b><p class="note">On the storefront (SACOLÃO), the heat sits on the produce display and the awning, the cues a person would use.</p></div>
+      <div class="panel"><b>Misses</b><p class="note">The false positive is a school with a shutter and signage. The false negative is a closed-shutter shop with no sign. Both show where the cues are weak.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RAIS ============ -->
+<section class="tab" id="t-rais">
+  <div class="block">
+    <span class="eyebrow">Part 6 of 6 · The measurement</span>
+    <h1 style="font-size:clamp(1.8rem,4vw,2.6rem)">Street View next to RAIS</h1>
+    <p class="lede">The pipeline's output is compared with RAIS, the official register of formal establishments. The two sources describe food outlets in different ways, so this page shows how they differ and how a detection is matched to a record. It does not show the underrepresentation analysis itself.</p>
+  </div>
+
+  <div class="block">
+    <h2>Two sources, two ways of recording a shop</h2>
+    <div class="scroll"><table id="srcTable"></table></div>
+    <p class="note">Both are mapped to the same two labels, healthy and unhealthy, so they can be compared. RAIS gets there from its Locais-Nova groups, Street View from the classifier.</p>
+  </div>
+
+  <div class="block">
+    <h2>How much each source holds in the study area</h2>
+    <p>Number of records in the favela study area of each city. A Street View record is a panorama where a food outlet was detected, so one shop can appear from neighbouring panoramas. A RAIS record is one registered establishment.</p>
+    <div class="panel"><div class="scroll"><svg class="chart" id="raisCounts" viewBox="0 0 900 270" role="img" aria-label="Street View detections and RAIS records by city"></svg></div></div>
+  </div>
+
+  <div class="block">
+    <h2>How a detection is matched to a record</h2>
+    <p>A Street View detection counts as overlapping with RAIS when a RAIS record lies within a set distance of the panorama point. Without one, it is Street View only. Pick the distance to see how the split moves; the study uses 50 m.</p>
+    <div class="panel block">
+      <div class="seg" role="radiogroup" aria-label="Matching distance" id="radSeg"></div>
+      <div class="grid2" style="align-items:center">
+        <svg class="chart" id="radDiagram" viewBox="0 0 300 300" role="img" aria-label="Schematic of the matching distance" style="max-width:340px;margin-inline:auto"></svg>
+        <div class="block"><div class="bars" id="overlapBars"></div>
+          <div class="legend"><span><i style="background:var(--accent)"></i>RAIS record within the distance</span><span><i style="background:var(--warn)"></i>Street View only</span></div></div>
+      </div>
+      <p class="note">The diagram is a schematic, not real positions. The bars use the real counts of Street View detections per city.</p>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer><div class="wrap">Giovanni Attina · Master's research · Street View imagery © Google, shown as a small sample. Code: <a href="https://github.com/giovanniattina/gsv-food-outlet-pipeline">github.com/giovanniattina/gsv-food-outlet-pipeline</a></div></footer>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+(function(){
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const FN=["commercial","residential","education","industrial","outdoors_natural","transportation"];
+const FN_LABEL={commercial:"Commercial",residential:"Residential",education:"Education",industrial:"Industrial",outdoors_natural:"Outdoors / natural",transportation:"Transportation",non:"Non-commercial"};
+const col=k=>`var(--c-${k})`;
+const OBJ_MAP=[["g0","produce-market","Produce market"],["g0","butchery-store","Butchery"],["g0","restaurant","Restaurant"],["g1g2","grocery-store","Grocery store"],["g1g2","informal-settlements-market","Informal-settlements market"],["g1g2","street-vendor","Street vendor"],["g3","bakery","Bakery"],["g3","convenience-store","Convenience store"],["g4","supermarket","Supermarket"],["g4","beverages","Beverages"]];
+let PCA=null, CONDS=null;
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+
+/* ---------- routing ---------- */
+const TABS=["home","dataset","embeddings","models","ocr","results","rais"];
+function route(){
+  let h=(location.hash||"#home").slice(1); if(!TABS.includes(h)) h="home";
+  TABS.forEach(t=>{$("#t-"+t).classList.toggle("on",t===h)});
+  $$("#nav a").forEach(a=>a.toggleAttribute("aria-current",a.dataset.t===h)); $$("#nav a").forEach(a=>{ if(a.dataset.t===h) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current")});
+  scrollTo(0,0);
+}
+addEventListener("hashchange",route);
+
+/* ---------- helpers ---------- */
+function seg(el,name,opts,val,cb){
+  el.innerHTML=opts.map(([v,l])=>`<label><input type="radio" name="${name}" value="${v}" ${v===val?"checked":""}><span>${l}</span></label>`).join("");
+  el.addEventListener("change",e=>cb(e.target.value));
+}
+const sprite=(i,size)=>{const t=PCA.atlas.tile,c=PCA.atlas.cols,s=size/t;return `background-image:url(data/crops.jpg);background-size:${c*t*s}px auto;background-position:-${(i%c)*t*s}px -${Math.floor(i/c)*t*s}px;`};
+const tip=$("#tip");
+function showTip(e,html){tip.innerHTML=html;tip.style.display="block";const w=tip.offsetWidth,h=tip.offsetHeight;let x=e.clientX+14,y=e.clientY+14;if(x+w>innerWidth-8)x=e.clientX-w-14;if(y+h>innerHeight-8)y=e.clientY-h-14;tip.style.left=x+"px";tip.style.top=y+"px"}
+const hideTip=()=>tip.style.display="none";
+const NS="http://www.w3.org/2000/svg";
+const el=(n,a,p)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e};
+
+/* ---------- load ---------- */
+let TEXT=null,RAIS=null;
+Promise.all([fetch("data/pca_dinov2l.json").then(r=>r.json()),fetch("data/stage1_conditions.json").then(r=>r.json()),fetch("data/ocr_text_share.json").then(r=>r.json()),fetch("data/rais_compare.json").then(r=>r.json())]).then(([p,c,t,r])=>{PCA=p;CONDS=c;TEXT=t;RAIS=r;init()}).catch(()=>{document.body.insertAdjacentHTML("afterbegin",'<p class="proto" style="margin:20px">Data files failed to load. Run the page from a web server or publish it with its data folder.</p>')});
+
+function init(){
+  route();
+  home(); dataset(); embeddings(); models(); ocr(); results(); rais();
+}
+
+/* ---------- RAIS ---------- */
+function rais(){
+  const rows=[
+    ["What one record is","One formal establishment, identified by its tax number (CNPJ).","One panorama where the pipeline found a food outlet."],
+    ["Where it comes from","RAIS 2022, the official annual register of formal employment.","Street View imagery from 2022, classified by this pipeline."],
+    ["Location","Geocoded from the registered address; kept when the match is to street number, approximate number, street or postal code.","The panorama point nearest to the street. No address."],
+    ["Food label","Locais-Nova groups from the activity code (CNAE), collapsed to healthy or unhealthy.","Healthy or unhealthy from the image and the signage text."],
+    ["Who can appear","Only registered businesses.","Any visible outlet, registered or not, as long as its sign reads as food."],
+    ["What a record carries","Tax number, activity code, legal name.","Confidence score, matched sign keywords, the viewing direction."],
+    ["Kept when","Municipality match, usable geocoding, and at least one healthy or unhealthy group.","Commercial facade, at least one food keyword read from the sign, and score above 0.75."]
+  ];
+  $("#srcTable").innerHTML=`<tr><th></th><th>RAIS</th><th>Street View detections</th></tr>`+rows.map(r=>`<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join("");
+
+  const CITY={sp:"São Paulo",bh:"Belo Horizonte",jp:"João Pessoa"},keys=["sp","bh","jp"];
+  const svg=$("#raisCounts"),W=900,H=270,m={l:56,r:10,t:22,b:50},mx=14000,Y=v=>H-m.b-v/mx*(H-m.t-m.b);
+  [0,4000,8000,12000].forEach(v=>{el("line",{x1:m.l,x2:W-m.r,y1:Y(v),y2:Y(v),stroke:"var(--line)","stroke-width":.7},svg);el("text",{x:m.l-8,y:Y(v)+4,"text-anchor":"end"},svg).textContent=v.toLocaleString("en-US")});
+  const gw=(W-m.l-m.r)/3;
+  keys.forEach((k,i)=>{const gx=m.l+gw*i+gw*.2,bw=gw*.3;
+    [["Street View detections",RAIS[k].gsv,"var(--accent)"],["RAIS records",RAIS[k].rais_study_area,"var(--c-education)"]].forEach(([l,v,c],j)=>{
+      const r=el("rect",{x:gx+j*(bw+8),y:Y(v),width:bw,height:Y(0)-Y(v),fill:c,rx:3},svg);
+      el("text",{x:gx+j*(bw+8)+bw/2,y:Y(v)-6,"text-anchor":"middle"},svg).textContent=v.toLocaleString("en-US");
+      r.addEventListener("pointermove",e=>showTip(e,`<b>${CITY[k]}</b><br>${l}: ${v.toLocaleString("en-US")}`));r.addEventListener("pointerleave",hideTip)});
+    el("text",{x:m.l+gw*i+gw/2,y:H-28,"text-anchor":"middle",class:"lbl"},svg).textContent=CITY[k]});
+  [["Street View detections","var(--accent)"],["RAIS records","var(--c-education)"]].forEach(([l,c],j)=>{el("rect",{x:m.l+j*190,y:H-14,width:10,height:10,fill:c,rx:2},svg);el("text",{x:m.l+j*190+15,y:H-5},svg).textContent=l});
+
+  const draw=r=>{r=+r;
+    $("#overlapBars").innerHTML=keys.map(k=>{const o=RAIS[k].overlap[r],t=RAIS[k].gsv,p=o/t*100;
+      return `<div style="display:grid;gap:4px"><div style="display:flex;justify-content:space-between;font-size:.88rem"><span>${CITY[k]}</span><span class="mono">${o.toLocaleString("en-US")} of ${t.toLocaleString("en-US")} · ${p.toFixed(0)}%</span></div><div class="t" style="height:14px;background:var(--warn);border-radius:3px;overflow:hidden;opacity:.9"><i style="display:block;height:100%;width:${p}%;background:var(--accent)"></i></div></div>`}).join("");
+    const d=$("#radDiagram");d.innerHTML="";const cx=150,cy=150,sc=130/100;
+    el("circle",{cx,cy,r:r*sc,fill:"var(--accent)","fill-opacity":.14,stroke:"var(--accent)","stroke-dasharray":"4 3"},d);
+    el("rect",{x:cx-7,y:cy-7,width:14,height:14,fill:"var(--c-education)",rx:2},d);
+    [[8,20],[28,100],[44,200],[62,300],[88,45],[96,150],[38,250],[72,335]].forEach(([dist,ang])=>{const a=ang*Math.PI/180,x=cx+Math.cos(a)*dist*sc,y=cy+Math.sin(a)*dist*sc;
+      el("circle",{cx:x,cy:y,r:5.5,fill:dist<=r?"var(--accent)":"var(--warn)",stroke:"var(--bg)","stroke-width":1.5},d)});
+    el("text",{x:cx,y:cy-r*sc-8,"text-anchor":"middle"},d).textContent=r+" m";
+    el("text",{x:150,y:292,"text-anchor":"middle"},d).textContent="square = RAIS record · dots = Street View detections"};
+  seg($("#radSeg"),"rad",[[10,"10 m"],[25,"25 m"],[50,"50 m (used)"],[75,"75 m"],[100,"100 m"]],50,draw);draw(50);
+}
+
+/* ---------- OCR ---------- */
+function ocr(){
+  /* real tokens and Jaro-Winkler similarities from the Stage 3 error analysis (experiments/stage3_ablation/README.md) */
+  const EX={
+    bakery:{label:"Bakery facade",img:"data/ocr_example.jpg",gold:"bakery",cap:"Gold label: bakery. The sign reads “Pão Dourado”.",
+      rows:[["pao","pao",1.0,"bakery, produce-market"],["dourado","doceria",.771,"convenience-store"]]},
+    vendor:{label:"Sign-less vendor",img:null,gold:"street-vendor",cap:"Gold label: street-vendor (a cart, no food sign). OCR reads the neighbouring electronics shop: “GAMES · CELULARES-ELETRÔNICOS”.",
+      rows:[["cot","costelinha",.813,"supermarket"],["games","paes",.783,"bakery, grocery-store"],["tanat","antarctica",.767,"beverages"],["eletronicos","espetinhos",.758,"beverages"]]}
+  };
+  let cur="bakery";
+  const draw=()=>{
+    const t=parseFloat($("#thr").value),ex=EX[cur];$("#thrVal").textContent=t.toFixed(2);
+    const img=$("#ocrImg");img.style.display=ex.img?"block":"none";if(ex.img)img.src=ex.img;
+    $("#ocrCap").textContent=ex.cap;
+    $("#ocrTable").innerHTML=`<tr><th>OCR token</th><th>Matches</th><th class="n">Similarity</th><th>Votes for</th><th>At ${t.toFixed(2)}</th></tr>`+ex.rows.map(r=>{const ok=r[2]>=t;return `<tr style="${ok?"":"opacity:.45"}"><td class="mono">${r[0]}</td><td class="mono">${r[1]}</td><td class="n">${r[2].toFixed(3)}</td><td>${r[3]}</td><td>${ok?'<span class="chip g0">kept</span>':'<span class="chip g3">dropped</span>'}</td></tr>`}).join("");
+    const kept=ex.rows.filter(r=>r[2]>=t).length;
+    $("#ocrOut").textContent=kept===0?"No match survives, so OCR stays silent and the image prediction decides alone."
+      :cur==="vendor"?"Spurious matches still vote. The signage branch would pull this vendor toward a shop class.":"The exact match on “pao” points to a bakery. The fuzzy match “dourado → doceria” is a false lead that only counts at low thresholds.";
+  };
+  seg($("#ocrSeg"),"ocrex",[["bakery","Bakery facade"],["vendor","Sign-less vendor"]],"bakery",v=>{cur=v;draw()});
+  $("#thr").addEventListener("input",draw);draw();
+
+  const names={"produce-market":"Produce market","butchery-store":"Butchery","restaurant":"Restaurant","grocery-store":"Grocery store","informal-settlements-market":"Informal-settlements market","street-vendor":"Street vendor","bakery":"Bakery","convenience-store":"Convenience store","supermarket":"Supermarket","beverages":"Beverages"};
+  const rows=Object.entries(TEXT).map(([k,[a,b]])=>({k,a,b,s:a/b})).sort((x,y)=>y.s-x.s);
+  $("#textShare").innerHTML=rows.map(r=>{const crit=r.k==="informal-settlements-market"||r.k==="street-vendor";return `<div class="bar-row" style="grid-template-columns:200px minmax(0,1fr) 70px"><span>${names[r.k]}</span><div class="t"><i style="width:${r.s*100}%;background:${crit?"var(--warn)":"var(--accent)"}"></i></div><span class="mono">${r.a}/${r.b}</span></div>`}).join("");
+
+  const F=[["O01","OCR only · Jaro-Winkler",.368,0],["O03","OCR only · Levenshtein",.399,0],["F01","Weighted avg · α=0.3",.488,1],["F02","Weighted avg · α=0.5",.490,2],["F03","Weighted avg · α=0.7",.413,1],["F04","Argmax override · τ=0.6",.267,1],["F07","Stacking · balanced",.442,1],["F08","Stacking + OCR meta",.299,1],["F14","OR-gate",.498,1],["F15","Max-confidence gate",.435,1]];
+  const svg=$("#fusion"),W=900,m={l:200,r:50,t:8,b:30},rh=32,H=m.t+rh*F.length+m.b;svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  const X=v=>m.l+v/.6*(W-m.l-m.r);
+  [0,.2,.4,.6].forEach(v=>{el("line",{x1:X(v),x2:X(v),y1:m.t,y2:H-m.b,stroke:"var(--line)","stroke-width":.7},svg);el("text",{x:X(v),y:H-m.b+16,"text-anchor":"middle"},svg).textContent=v.toFixed(1)});
+  F.forEach(([id,l,v,k],i)=>{const y=m.t+rh*i+6;el("text",{x:m.l-10,y:y+13,"text-anchor":"end",class:"lbl"},svg).textContent=l;
+    const r=el("rect",{x:m.l,y,width:X(v)-m.l,height:20,rx:3,fill:k===0?"var(--c-non)":id==="F02"?"var(--accent)":"var(--c-education)","fill-opacity":id==="F02"?1:.7},svg);
+    el("text",{x:X(v)+6,y:y+14},svg).textContent=v.toFixed(3)+(id==="F02"?"  same rule as deployed":"");
+    r.addEventListener("pointermove",e=>showTip(e,`<b>${id}</b> · ${l}<br>F1-macro ${v.toFixed(3)} · n=162`));r.addEventListener("pointerleave",hideTip)});
+}
+
+/* ---------- HOME ---------- */
+function home(){
+  const c=$("#heroCanvas"),ctx=c.getContext("2d"),img=new Image();
+  img.onload=()=>ctx.drawImage(img,0,0,640,480,0,0,c.width,c.height);
+  img.src="data/crops.jpg";
+  const S=[["558","hand-annotated crops"],["333","commercial storefronts"],["162","food outlets in 10 types"],["0.93","Stage 1 F1, 5-seed mean (n=112)"]];
+  $("#homeStats").innerHTML=S.map(([a,b])=>`<div class="stat"><b>${a}</b><span>${b}</span></div>`).join("");
+}
+
+/* ---------- DATASET ---------- */
+function dataset(){
+  const n=PCA.points.length, cnt=k=>PCA.points.filter(p=>p.fn===k).length;
+  $("#barsFn").innerHTML=FN.map(k=>`<div class="bar-row"><span>${FN_LABEL[k]}</span><div class="t"><i style="width:${cnt(k)/n*100}%;background:${col(k)}"></i></div><span class="mono">${cnt(k)}</span></div>`).join("");
+  const objs=[...OBJ_MAP.map(o=>o[1]),"others"]; const oc=o=>PCA.points.filter(p=>p.obj===o).length; const mx=Math.max(...objs.map(oc));
+  const lab=o=>o==="others"?"Others":(OBJ_MAP.find(m=>m[1]===o)||[0,0,o])[2];
+  $("#barsObj").innerHTML=objs.map(o=>`<div class="bar-row"><span>${lab(o)}</span><div class="t"><i style="width:${oc(o)/mx*100}%;background:${o==="others"?"var(--c-non)":"var(--accent)"}"></i></div><span class="mono">${oc(o)}</span></div>`).join("");
+  const g=x=>OBJ_MAP.filter(m=>m[0]===x).reduce((s,m)=>s+oc(m[1]),0);
+  const grp={g0:["Unprocessed sources","healthy"],g1g2:["Minimally processed + culinary ingredients","healthy"],g3:["Processed foods","unhealthy"],g4:["Ultra-processed foods","unhealthy"]};
+  $("#mapTable").innerHTML=`<tr><th>Label</th><th>Meaning</th><th>Outlet types</th><th class="n">n</th><th>Counts as</th></tr>`+Object.keys(grp).map(k=>`<tr><td><span class="chip ${k}">${k}</span></td><td>${grp[k][0]}</td><td>${OBJ_MAP.filter(m=>m[0]===k).map(m=>m[2]).join(", ")}</td><td class="n">${g(k)}</td><td>${grp[k][1]}</td></tr>`).join("");
+  const opts=[["all","Mixed"],["food","Food outlets"],["commercial","Commercial"],["residential","Residential"],["outdoors_natural","Outdoors"]];
+  const draw=v=>{let pts=PCA.points.filter(p=>p.c!==undefined);
+    if(v==="food")pts=pts.filter(p=>p.obj&&p.obj!=="others");else if(v!=="all")pts=pts.filter(p=>p.fn===v);
+    const pick=pts.sort((a,b)=>a.c-b.c);
+    $("#gallery").innerHTML=pick.map(p=>`<figure><div class="im" style="${sprite(p.c,112)}"></div><figcaption>${p.obj&&p.obj!=="others"?p.obj:FN_LABEL[p.fn]}</figcaption></figure>`).join("")};
+  seg($("#galSeg"),"gal",opts,"all",draw); draw("all");
+}
+
+/* ---------- EMBEDDINGS ---------- */
+function embeddings(){
+  const svg=$("#pca"),W=900,H=520,m={l:56,r:16,t:16,b:44},P=PCA.points;
+  const xs=P.map(p=>p.x),ys=P.map(p=>p.y),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+  const X=v=>m.l+(v-x0)/(x1-x0)*(W-m.l-m.r), Y=v=>H-m.b-(v-y0)/(y1-y0)*(H-m.t-m.b);
+  const evr=PCA.evr.map(v=>(v*100).toFixed(1));
+  const nice=(a,b)=>{const s=Math.pow(10,Math.floor(Math.log10((b-a)/5)));const st=[1,2,5,10].map(k=>k*s).find(k=>(b-a)/k<=7);const o=[];for(let v=Math.ceil(a/st)*st;v<=b;v+=st)o.push(v);return o};
+  nice(x0,x1).forEach(v=>{el("line",{x1:X(v),x2:X(v),y1:m.t,y2:H-m.b,stroke:"var(--line)","stroke-width":.7},svg);el("text",{x:X(v),y:H-m.b+16,"text-anchor":"middle"},svg).textContent=v});
+  nice(y0,y1).forEach(v=>{el("line",{x1:m.l,x2:W-m.r,y1:Y(v),y2:Y(v),stroke:"var(--line)","stroke-width":.7},svg);el("text",{x:m.l-8,y:Y(v)+4,"text-anchor":"end"},svg).textContent=v});
+  el("text",{x:(W+m.l)/2,y:H-6,"text-anchor":"middle"},svg).textContent=`PC1 · ${evr[0]}% of variance`;
+  const yl=el("text",{x:14,y:H/2,"text-anchor":"middle",transform:`rotate(-90 14 ${H/2})`},svg);yl.textContent=`PC2 · ${evr[1]}% of variance`;
+  const dots=P.map(p=>{const c=el("circle",{cx:X(p.x),cy:Y(p.y),r:4.2,"fill-opacity":.72,stroke:"var(--bg)","stroke-width":.6},svg);
+    c.addEventListener("pointermove",e=>{c.setAttribute("r",7);showTip(e,`${p.c!==undefined?`<div class="th" style="${sprite(p.c,96)}"></div>`:""}${FN_LABEL[p.fn]}${p.obj&&p.obj!=="others"?"<br>"+p.obj:""}`)});
+    c.addEventListener("pointerleave",()=>{c.setAttribute("r",4.2);hideTip()});return c});
+  const paint=mode=>{
+    P.forEach((p,i)=>dots[i].setAttribute("fill",mode==="bin"?col(p.fn==="commercial"?"commercial":"non"):col(p.fn)));
+    const L=mode==="bin"?[["commercial","Commercial"],["non","Non-commercial"]]:FN.map(k=>[k,FN_LABEL[k]]);
+    $("#pcaLegend").innerHTML=L.map(([k,l])=>`<span><i style="background:${col(k)}"></i>${l}</span>`).join("");
+    store.set("pcaMode",mode)};
+  const saved=store.get("pcaMode")==="six"?"six":"bin";
+  seg($("#pcaSeg"),"pca",[["bin","Two classes"],["six","Original six"]],saved,paint);paint(saved);
+  // class-centroid separation along PC1 and PC2, in the 2D plane
+  const cen=f=>{const q=P.filter(f);return[q.reduce((s,p)=>s+p.x,0)/q.length,q.reduce((s,p)=>s+p.y,0)/q.length]};
+  const a=cen(p=>p.fn==="commercial"),b=cen(p=>p.fn!=="commercial");
+  $("#pcaNote").textContent=`PC1+PC2 = ${(PCA.evr[0]*100+PCA.evr[1]*100).toFixed(1)}% of the variance · centroids: commercial (${a[0].toFixed(1)}, ${a[1].toFixed(1)}), non-commercial (${b[0].toFixed(1)}, ${b[1].toFixed(1)})`;
+  $("#pcaRead").innerHTML=`<b>How to read it.</b> Two axes keep only ${(PCA.evr[0]*100+PCA.evr[1]*100).toFixed(0)}% of what the model knows, so overlap here does not mean the classes are inseparable. It is one view of a 1,024-dimension space. Commercial and non-commercial crops lean toward different regions, and the full-dimension classifier on top (Stage 1) reaches F1 0.93 on held-out data.`;
+}
+
+/* ---------- MODELS ---------- */
+function famOf(m){return m.startsWith("CLIP")?"CLIP":m.startsWith("LiT")?"LiT (SigLIP)":m.startsWith("BLIP")?"BLIP-2 + LLM":"DINOv2 + MLP"}
+function models(){
+  const FAM=["CLIP","LiT (SigLIP)","BLIP-2 + LLM","DINOv2 + MLP"];
+  const draw=form=>{
+    const svg=$("#strip");svg.innerHTML="";const W=900,m={l:130,r:20,t:14,b:36},rh=64,H=m.t+rh*FAM.length+m.b;svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+    const X=v=>m.l+v*(W-m.l-m.r);
+    [0,.2,.4,.6,.8,1].forEach(v=>{el("line",{x1:X(v),x2:X(v),y1:m.t,y2:H-m.b,stroke:"var(--line)","stroke-width":.7},svg);el("text",{x:X(v),y:H-m.b+16,"text-anchor":"middle"},svg).textContent=v.toFixed(1)});
+    el("text",{x:(W+m.l)/2,y:H-2,"text-anchor":"middle"},svg).textContent="F1-macro";
+    [[.7,"min 0.70"],[.85,"target 0.85"]].forEach(([v,l])=>{el("line",{x1:X(v),x2:X(v),y1:m.t,y2:H-m.b,stroke:"var(--accent)","stroke-dasharray":"4 3","stroke-width":1.2},svg);el("text",{x:X(v)+4,y:m.t+9,fill:"var(--accent)",style:"fill:var(--accent)"},svg).textContent=l});
+    FAM.forEach((f,i)=>{const cy=m.t+rh*i+rh/2;el("line",{x1:m.l,x2:W-m.r,y1:cy,y2:cy,stroke:"var(--line)"},svg);el("text",{x:m.l-12,y:cy+4,"text-anchor":"end",class:"lbl"},svg).textContent=f;
+      CONDS.filter(c=>famOf(c.model)===f&&(form==="both"||c.form===form)).forEach((c,j)=>{
+        const jitter=((j*37)%5-2)*8, x=X(c.f1), y=cy+jitter, sup=c.n===112;
+        const best=c.id==="V12"||c.id==="S02";
+        const s=sup?el("rect",{x:x-6,y:y-6,width:12,height:12,rx:2}, svg):el("circle",{cx:x,cy:y,r:6},svg);
+        s.setAttribute("fill",c.form==="binary"?"var(--accent)":"var(--c-non)");s.setAttribute("fill-opacity",.75);s.setAttribute("stroke",best?"var(--ink)":"var(--bg)");s.setAttribute("stroke-width",best?2:1);
+        s.addEventListener("pointermove",e=>showTip(e,`<b>${c.id}</b> · ${c.model}<br>prompt ${c.prompt==="N/A"?"—":c.prompt} · ${c.form}<br>F1 ${c.f1.toFixed(3)}${c.sd?" ± "+c.sd.toFixed(3):""}<br>recall ${c.recall.toFixed(2)} · prec ${c.prec.toFixed(2)}<br>n=${c.n}${c.seeds?" · 5 seeds":""} · ${c.ms} ms/img`));
+        s.addEventListener("pointerleave",hideTip)})});
+  };
+  seg($("#formSeg"),"form",[["binary","Binary"],["6-class","6-class"],["both","Both"]],"binary",draw);draw("binary");
+
+  // prompts chart
+  const svg=$("#prompts"),W=900,H=300,m={l:46,r:10,t:20,b:50},PR=["P1","P2","P3","P4"],MD=["CLIP-B","CLIP-L","CLIP-B-LAION"],CC=["var(--c-education)","var(--accent)","var(--c-residential)"];
+  const Y=v=>H-m.b-v*(H-m.t-m.b);
+  [0,.25,.5,.75,1].forEach(v=>{el("line",{x1:m.l,x2:W-m.r,y1:Y(v),y2:Y(v),stroke:"var(--line)","stroke-width":.7},svg);el("text",{x:m.l-8,y:Y(v)+4,"text-anchor":"end"},svg).textContent=v.toFixed(2)});
+  const gw=(W-m.l-m.r)/4;
+  PR.forEach((p,i)=>{const gx=m.l+gw*i+gw*.12,bw=gw*.76/3;
+    MD.forEach((md,j)=>{const c=CONDS.find(c=>c.model===md&&c.prompt===p&&c.form==="binary");if(!c)return;
+      const r=el("rect",{x:gx+bw*j+2,y:Y(c.f1),width:bw-4,height:Y(0)-Y(c.f1),fill:CC[j],rx:2},svg);
+      el("text",{x:gx+bw*j+bw/2,y:Y(c.f1)-5,"text-anchor":"middle"},svg).textContent=c.f1.toFixed(2);
+      r.addEventListener("pointermove",e=>showTip(e,`<b>${c.id}</b> · ${md} · ${p}<br>F1 ${c.f1.toFixed(3)} · n=${c.n}`));r.addEventListener("pointerleave",hideTip)});
+    el("text",{x:m.l+gw*i+gw/2,y:H-30,"text-anchor":"middle",class:"lbl"},svg).textContent={P1:"P1 · one phrase",P2:"P2 · templates",P3:"P3 · taxonomy",P4:"P4 · Brazil-adapted"}[p]});
+  MD.forEach((md,j)=>{el("rect",{x:m.l+j*130,y:H-14,width:10,height:10,fill:CC[j],rx:2},svg);el("text",{x:m.l+j*130+15,y:H-5},svg).textContent=md});
+
+  // decision table
+  const g=id=>CONDS.find(c=>c.id===id);const v12=g("V12"),s02=g("S02"),v06=g("V06");
+  const row=(c,name,evalset,role)=>`<tr><td><b>${name}</b><br><span class="note mono">${c.id}</span></td><td>${evalset}</td><td class="n">${c.f1.toFixed(3)}</td><td class="n">${c.recall.toFixed(3)}</td><td class="n">${c.prec.toFixed(3)}</td><td class="n">${c.ms}</td><td>${role}</td></tr>`;
+  $("#decision").innerHTML=`<tr><th>Setup</th><th>Evaluated on</th><th class="n">F1</th><th class="n">Comm. recall</th><th class="n">Comm. prec.</th><th class="n">ms/img</th><th>Role</th></tr>`+
+    row(v12,"CLIP-L · P3 · zero-shot","n=558, no training","Best with no labels")+row(v06,"CLIP-B · P3 · zero-shot","n=558, no training","Cheaper alternative")+row(s02,"DINOv2-Large + MLP","n=112 held-out, 5 seeds","<span class='chip'>deployed</span>");
+  $("#decisionNote").innerHTML=`<b>Labels existed for the study area, so we used the stronger supervised model.</b> DINOv2-Large + MLP clears the target bar (F1 ≥ 0.85, recall ≥ 0.90) and is the one the pipeline ships. Zero-shot CLIP-L passes the minimum bar (F1 ≥ 0.70, recall ≥ 0.80) with no labels at all, so it stays as the option for new cities. The two were scored on different sets (n=112 held-out versus n=558), so the gap is an upper bound, not a fair race.`;
+}
+
+/* ---------- RESULTS ---------- */
+function results(){
+  const cm=(id,m,a,b)=>{ $(id).innerHTML=`<div class="h"></div><div class="h">pred ${a}</div><div class="h">pred ${b}</div>`+
+    `<div class="h">true ${a}</div><div class="ok">${m[0][0]}</div><div class="no">${m[0][1]}</div><div class="h">true ${b}</div><div class="no">${m[1][0]}</div><div class="ok">${m[1][1]}</div>`};
+  cm("#cm1",[[64,3],[4,41]],"comm.","non-comm.");
+  cm("#cm2",[[20,4],[3,6]],"healthy","unhealthy");
+}
+})();
+</script>
+</body>
+</html>

@@ -19,6 +19,9 @@ format, and configuration.
 - `pipeline/run_pipeline_s02_u02.py` — the inference script (Stage 1 urban-function
   filter + Stage 2 food-health classifier + Stage 3 OCR late fusion).
 - `pipeline/README.md` — usage, checkpoint format, and configuration reference.
+- `docs/` — the portfolio site (GitHub Pages, served from `/docs`): dataset, DINOv2
+  embeddings, how the models were chosen, the OCR stage, final results, and how the
+  detections differ from RAIS. It shows a sample of 12 Street View crops only.
 
 ## What's not here
 
