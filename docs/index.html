@@ -129,6 +129,20 @@ td.n,th.n{text-align:right;font-family:var(--font-mono);font-variant-numeric:tab
 .cm .no{background:color-mix(in srgb,var(--bad) 28%,transparent)}
 .sal{width:100%;border-radius:8px;border:1px solid var(--line);display:block}
 .pending{border:1px dashed var(--line);border-radius:10px;padding:20px;color:var(--muted)}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:16px}
+.opt h3{margin-top:2px}
+ul.plain{margin:0;padding-left:18px;display:grid;gap:8px;font-size:.9rem}
+a.cite{color:var(--accent);cursor:pointer;text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--accent) 40%,transparent);text-underline-offset:2px;white-space:nowrap}
+a.cite:hover{text-decoration-color:var(--accent)}
+.quote{font:400 .85rem/1.5 var(--font-mono);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px 12px;overflow-wrap:anywhere}
+.refs{margin:0;padding-left:22px;display:grid;gap:10px;font-size:.88rem}
+.refs li{padding-left:4px;scroll-margin-top:84px}
+.refs li.hit{background:var(--accent-soft);border-radius:4px}
+.pbar{display:grid;grid-template-columns:120px minmax(0,1fr) 46px;gap:10px;align-items:center;font-size:.85rem}
+.pbar .t{height:12px;background:var(--line);border-radius:3px;overflow:hidden}
+.pbar .t i{display:block;height:100%;border-radius:3px;background:var(--c-non)}
+.pbar.on .t i{background:var(--accent)}
+.pbar.on{font-weight:600}
 footer{border-top:1px solid var(--line);padding-block:20px 40px;color:var(--muted);font-size:.85rem}
 @media(prefers-reduced-motion:no-preference){section.tab.on{animation:in .25s ease-out}@keyframes in{from{opacity:.4;transform:translateY(6px)}}}
 </style>
@@ -249,7 +263,57 @@ footer{border-top:1px solid var(--line);padding-block:20px 40px;color:var(--mute
   </div>
 
   <div class="block">
-    <h2>1 · Which family fits?</h2>
+    <h2>1 · The options on the table</h2>
+    <p>Stage 1 is a scene recognition task: is this facade commercial or not? Three kinds of model can answer it, and the literature predicts different winners. Contrastive vision-language models tend to beat language-model hybrids on recognition, while hybrids pull ahead on tasks that need reasoning <a class="cite" href="#models" data-ref="cooper2024">(Cooper et al., 2024)</a>. We tested all three.</p>
+    <div class="grid3">
+      <div class="panel block opt">
+        <span class="chip">Zero-shot · no labels</span><h3>Contrastive vision-language</h3>
+        <p class="note">Image and text are embedded in one space; the class whose text is closest to the image wins. No training on our data.</p>
+        <ul class="plain">
+          <li><b>CLIP</b> ViT-B/32 and ViT-L/14, trained on 400M image-text pairs <a class="cite" href="#models" data-ref="radford2021">(Radford et al., 2021)</a></li>
+          <li><b>OpenCLIP</b> ViT-B/32 on LAION-2B, the same architecture on a different, larger web dataset <a class="cite" href="#models" data-ref="schuhmann2022">(Schuhmann et al., 2022</a>; <a class="cite" href="#models" data-ref="cherti2023">Cherti et al., 2023)</a></li>
+          <li><b>SigLIP</b> B and L, a sigmoid loss variant, used as the closest available stand-in for LiT <a class="cite" href="#models" data-ref="zhai2022">(Zhai et al., 2022</a>; <a class="cite" href="#models" data-ref="zhai2023">2023)</a></li>
+        </ul>
+        <p class="note mono">40 setups run · all scored on n=558</p>
+      </div>
+      <div class="panel block opt">
+        <span class="chip">Zero-shot · no labels</span><h3>Vision-language + LLM</h3>
+        <p class="note">An image encoder feeds a language model that answers in words. The answer is forced to one of the valid labels.</p>
+        <ul class="plain">
+          <li><b>BLIP-2</b> with Flan-T5-XL <a class="cite" href="#models" data-ref="li2023">(Li et al., 2023)</a>: run</li>
+          <li><b>OpenFlamingo-3B</b> <a class="cite" href="#models" data-ref="awadalla2023">(Awadalla et al., 2023</a>; <a class="cite" href="#models" data-ref="alayrac2022">Alayrac et al., 2022)</a>, <b>Qwen2.5-VL-3B</b> <a class="cite" href="#models" data-ref="bai2025">(Bai et al., 2025)</a>, <b>LLaVA-1.6</b> <a class="cite" href="#models" data-ref="liu2023">(Liu et al., 2023)</a>: planned, not run. They did not fit in memory on the Apple Silicon laptop.</li>
+        </ul>
+        <p class="note mono">6 setups run, 18 not run · scored on n=558</p>
+      </div>
+      <div class="panel block opt">
+        <span class="chip">Supervised · needs labels</span><h3>Frozen backbone + classifier</h3>
+        <p class="note">A pretrained vision model turns each image into a vector; a small classifier is trained on our labelled crops.</p>
+        <ul class="plain">
+          <li><b>DINOv2</b> Base and Large <a class="cite" href="#models" data-ref="oquab2024">(Oquab et al., 2024)</a>, backbone frozen</li>
+          <li>Small MLP head (one hidden layer of 512 units), focal loss, 4 augmented copies of each training image, 5 seeds. Details in section 6.</li>
+        </ul>
+        <p class="note mono">2 setups run · held-out n=112</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>2 · Techniques tried to improve CLIP</h2>
+    <p>With no training, the only lever is the text. The same image embedding is compared with differently written class descriptions. Pick a prompt strategy to see how it is built and what it scored (CLIP-L, binary task, n=558).</p>
+    <div class="panel block">
+      <div class="seg" role="radiogroup" aria-label="Prompt strategy" id="promptSeg"></div>
+      <div class="grid2" style="align-items:start">
+        <div class="block" id="promptBody"></div>
+        <div class="block"><div class="stat"><b id="promptF1">0.00</b><span id="promptF1Cap"></span></div><div class="bars" id="promptBar"></div></div>
+      </div>
+    </div>
+    <h3 style="margin-top:8px">Other levers</h3>
+    <div class="scroll"><table id="levers"></table></div>
+    <p class="note">The generative models got three prompt designs of their own: a direct question (GP1), the same with class descriptions built from the taxonomy (GP2), and a describe-reason-classify chain of thought (GP3). The chain of thought follows <a class="cite" href="#models" data-ref="wei2022">Wei et al. (2022)</a> and <a class="cite" href="#models" data-ref="kojima2022">Kojima et al. (2022)</a>; the enriched descriptions draw on <a class="cite" href="#models" data-ref="zhou2023">Zhou et al. (2023)</a>.</p>
+  </div>
+
+  <div class="block">
+    <h2>3 · Which family fits?</h2>
     <p>Each dot is one setup. Circles were scored on all 558 images with no training. Squares are the supervised model on a held-out set of 112 images (5-seed mean), so the two shapes are not a like-for-like race.</p>
     <div class="row">
       <div class="seg" role="radiogroup" aria-label="Task form" id="formSeg"></div>
@@ -258,15 +322,46 @@ footer{border-top:1px solid var(--line);padding-block:20px 40px;color:var(--mute
   </div>
 
   <div class="block">
-    <h2>2 · Which prompts help the CLIP models?</h2>
+    <h2>4 · Which prompts help, across CLIP variants?</h2>
     <p>Prompt P3 lists concrete urban objects behind each class, then averages them. It beats plain templates (P2) by 10 to 15 points of F1 on every CLIP variant. Binary task, n=558.</p>
     <div class="panel"><div class="scroll"><svg class="chart" id="prompts" viewBox="0 0 900 300" role="img" aria-label="F1 by prompt"></svg></div></div>
   </div>
 
   <div class="block">
-    <h2>3 · The decision</h2>
+    <h2>5 · The decision</h2>
     <div class="scroll"><table id="decision"></table></div>
     <div class="callout" id="decisionNote"></div>
+  </div>
+
+  <div class="block">
+    <h2>6 · How the chosen model was trained</h2>
+    <p>Stage 1 and Stage 2 use the same idea: keep a large pretrained vision model frozen and train only a small classifier on top. Nothing inside DINOv2 is updated, so training takes minutes on a laptop.</p>
+    <div class="flow">
+      <div class="node"><span class="k">1 · IMAGE</span><b>224 × 224 crop</b><small>Resized and normalised with the DINOv2 processor settings.</small></div><span class="arrow">→</span>
+      <div class="node"><span class="k">2 · BACKBONE · FROZEN</span><b>DINOv2-Large</b><small>The CLS token gives one 1,024-number vector per image.</small></div><span class="arrow">→</span>
+      <div class="node"><span class="k">3 · HEAD · TRAINED</span><b>Small MLP</b><small>Linear 1,024 → 512, batch norm, ReLU, dropout 0.3, linear → 2 classes.</small></div>
+    </div>
+    <figure class="panel" style="margin:0">
+      <div class="scroll"><svg class="chart" id="mlpFig" viewBox="0 0 900 360" role="img" aria-label="Architecture of the MLP head: 1,024 inputs, 512 hidden units, 2 outputs"></svg></div>
+      <figcaption class="note" style="margin-top:8px">The trained head. Only about 0.53 million weights are updated; the frozen DINOv2-Large behind it holds about 300 million. Dots stand for units; every unit is connected to every unit in the next layer.</figcaption>
+    </figure>
+    <div class="scroll"><table>
+      <tr><th>Setting</th><th>Stage 1 · S02 (commercial or not)</th><th>Stage 2 · U02 (healthy or unhealthy)</th></tr>
+      <tr><td><b>Data</b></td><td>558 crops, split 80/20 stratified (seed 42): 446 train, 112 held out</td><td>162 food outlets (119 healthy, 43 unhealthy): 129 train, 33 held out</td></tr>
+      <tr><td><b>Augmentation</b></td><td>4 extra copies of every training image: flip, small rotation and shift, colour jitter, random crop. 2,230 training vectors in all.</td><td>1 extra copy of every training image</td></tr>
+      <tr><td><b>Loss</b></td><td colspan="2">Focal loss with γ=4 <a class="cite" href="#models" data-ref="lin2017">(Lin et al., 2017)</a>, which down-weights easy examples so the rarer class counts more</td></tr>
+      <tr><td><b>Class balance</b></td><td colspan="2">A weighted sampler draws each class equally often in every batch</td></tr>
+      <tr><td><b>Optimiser</b></td><td colspan="2">Adam, learning rate 1e-4 with a cosine schedule over at most 50 epochs, batch size 16</td></tr>
+      <tr><td><b>Stopping</b></td><td colspan="2">Early stopping after 8 epochs without an accuracy gain; the best epoch is kept</td></tr>
+      <tr><td><b>Seeds</b></td><td colspan="2">Five runs (42, 24, 7, 0, 100). The page reports the mean; the shipped checkpoint is the best seed (seed 0 for S02).</td></tr>
+      <tr><td><b>Hardware</b></td><td colspan="2">Apple Silicon laptop (MPS). Feature extraction runs in batches of 32 at about 0.2 s per image.</td></tr>
+    </table></div>
+    <div class="callout warn"><b>Limits of this evaluation.</b> Two choices make the held-out scores optimistic, so read the S02 and U02 numbers as upper bounds. First, early stopping and the choice of best epoch and best seed use the same 112 held-out images (33 for U02) that produce the reported score. Second, the split is by image, not by panorama. Each panorama gives up to four crops, and by my reproduction of the split 104 of the 112 held-out crops come from a panorama that also has crops in training. The zero-shot CLIP scores (n=558, no training) are not affected. A re-run with a split by panorama and a separate validation set would remove both.</div>
+  </div>
+
+  <div class="block">
+    <h2>References</h2>
+    <ol class="refs" id="refs"></ol>
   </div>
 </section>
 
@@ -604,6 +699,81 @@ function models(){
       r.addEventListener("pointermove",e=>showTip(e,`<b>${c.id}</b> · ${md} · ${p}<br>F1 ${c.f1.toFixed(3)} · n=${c.n}`));r.addEventListener("pointerleave",hideTip)});
     el("text",{x:m.l+gw*i+gw/2,y:H-30,"text-anchor":"middle",class:"lbl"},svg).textContent={P1:"P1 · one phrase",P2:"P2 · templates",P3:"P3 · taxonomy",P4:"P4 · Brazil-adapted"}[p]});
   MD.forEach((md,j)=>{el("rect",{x:m.l+j*130,y:H-14,width:10,height:10,fill:CC[j],rx:2},svg);el("text",{x:m.l+j*130+15,y:H-5},svg).textContent=md});
+
+  // prompt strategies
+  const gid=id=>CONDS.find(c=>c.id===id);
+  const PS={
+    P1:{id:"V08",name:"P1 · One phrase per class",
+      body:`<p>The baseline. One short sentence per class, scored against the image.</p><div class="quote">a image of a commercial building</div><p class="note">The non-commercial class is the average of five concrete classes (residential, school, industrial, natural area, transport), because "non-commercial" on its own is too abstract for CLIP's embedding space. This is the standard zero-shot recipe from <a class="cite" href="#models" data-ref="radford2021">Radford et al. (2021)</a>.</p>`},
+    P2:{id:"V10",name:"P2 · UrbanCLIP templates",
+      body:`<p>Each class name is wrapped in six templates and the six text embeddings are averaged. The varied context is meant to dilute interference from any single phrasing.</p><div class="quote">A street photo of commercial building near road.<br>A street photo of commercial building with many vehicles.<br>… 6 templates in all</div><p class="note">Templates from <a class="cite" href="#models" data-ref="huang2024">Huang et al. (2024)</a>, who built them for street view images.</p>`},
+    P3:{id:"V12",name:"P3 · Taxonomy + templates",
+      body:`<p>Instead of one class name, each class is spelled out as its concrete urban object types. Every type goes through the six templates, and all the embeddings are averaged into a single prototype per class.</p><div class="quote">commercial = bakery, bar, fruit stand, grocery store, hair salon, market, pharmacy, restaurant … (30 types × 6 templates = 180 texts)<br>non-commercial = 52 types × 6 templates = 312 texts</div><p class="note">This is the full method of <a class="cite" href="#models" data-ref="huang2024">Huang et al. (2024)</a>, with the taxonomy adapted to Brazilian streets. Each class collapses to one prototype, so the larger non-commercial list does not outweigh the commercial one.</p>`},
+    P4:{id:"V28",name:"P4 · Brazil-adapted templates",
+      body:`<p>Same as P2, but the templates describe what these streets look like: narrow, brick, overhead wires.</p><div class="quote">A street photo of commercial building with exposed brick walls.<br>A street photo of commercial building near overhead power lines.<br>… 6 templates in all</div><p class="note">Our adaptation of the <a class="cite" href="#models" data-ref="huang2024">Huang et al. (2024)</a> templates, which were designed for Chinese cities.</p>`}
+  };
+  const showP=k=>{const p=PS[k],c=gid(p.id);
+    $("#promptBody").innerHTML=`<h3>${p.name}</h3>${p.body}`;
+    $("#promptF1").textContent=c.f1.toFixed(3);$("#promptF1Cap").textContent=`F1-macro · ${c.id} · recall ${c.recall.toFixed(2)} · n=${c.n}`;
+    $("#promptBar").innerHTML=Object.keys(PS).map(q=>{const d=gid(PS[q].id);return `<div class="pbar ${q===k?"on":""}"><span>${q}</span><div class="t"><i style="width:${d.f1*100}%"></i></div><span class="mono">${d.f1.toFixed(2)}</span></div>`}).join("");
+  };
+  seg($("#promptSeg"),"pst",Object.keys(PS).map(k=>[k,k+" · "+PS[k].name.split(" · ")[1]]),"P3",showP);showP("P3");
+
+  // other levers
+  const pp=(a,b)=>{const d=(gid(b).f1-gid(a).f1)*100;return (d>=0?"+":"")+d.toFixed(1)+" pp"};
+  const LV=[
+    ["Binary task instead of six classes","CLIP-L · P3","V11","V12","Large gain. Six classes spread the commercial class across lookalikes."],
+    ["Larger model","CLIP-L instead of CLIP-B · P3","V06","V12","Small gain. With P1 the gap is +3.4 pp, with P2 it reverses."],
+    ["Different pretraining data","OpenCLIP (LAION-2B) instead of CLIP-B (400M) · P3","V06","V38","No gain. The bigger web dataset did not help on Brazilian streets."],
+    ["Sigmoid loss (SigLIP)","SigLIP-L instead of CLIP-L · P3","V12","V24","Much worse. Many SigLIP setups answer almost always the same class."],
+    ["Chain of thought (BLIP-2)","GP3 instead of GP1 · six classes","G01","G05","No gain, and about 2 s per image against under 1 s for the direct prompt."]
+  ];
+  $("#levers").innerHTML=`<tr><th>Lever</th><th>Comparison</th><th class="n">F1 before</th><th class="n">F1 after</th><th class="n">Change</th><th>Reading</th></tr>`+LV.map(r=>`<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td class="n">${gid(r[2]).f1.toFixed(3)}<br><span class="note">${r[2]}</span></td><td class="n">${gid(r[3]).f1.toFixed(3)}<br><span class="note">${r[3]}</span></td><td class="n">${pp(r[2],r[3])}</td><td>${r[4]}</td></tr>`).join("");
+
+  // references
+  const REFS=[
+    ["radford2021","Radford, A., Kim, J. W., Hallacy, C., et al. (2021). Learning transferable visual models from natural language supervision. <i>ICML 2021</i>, PMLR 139, 8748–8763.","https://arxiv.org/abs/2103.00020"],
+    ["schuhmann2022","Schuhmann, C., Beaumont, R., Vencu, R., et al. (2022). LAION-5B: An open large-scale dataset for training next generation image-text models. <i>NeurIPS 2022</i>, Datasets and Benchmarks.","https://doi.org/10.52202/068431-1833"],
+    ["cherti2023","Cherti, M., Beaumont, R., Wightman, R., et al. (2023). Reproducible scaling laws for contrastive language-image learning. <i>CVPR 2023</i>.","https://doi.org/10.1109/CVPR52729.2023.00276"],
+    ["zhai2022","Zhai, X., Wang, X., Mustafa, B., et al. (2022). LiT: Zero-shot transfer with locked-image text tuning. <i>CVPR 2022</i>.","https://doi.org/10.1109/CVPR52688.2022.01759"],
+    ["zhai2023","Zhai, X., Mustafa, B., Kolesnikov, A., &amp; Beyer, L. (2023). Sigmoid loss for language image pre-training. <i>ICCV 2023</i>.","https://doi.org/10.1109/ICCV51070.2023.01100"],
+    ["li2023","Li, J., Li, D., Savarese, S., &amp; Hoi, S. (2023). BLIP-2: Bootstrapping language-image pre-training with frozen image encoders and large language models. <i>ICML 2023</i>.","https://arxiv.org/abs/2301.12597"],
+    ["alayrac2022","Alayrac, J.-B., Donahue, J., Luc, P., et al. (2022). Flamingo: a visual language model for few-shot learning. <i>NeurIPS 2022</i>.","https://arxiv.org/abs/2204.14198"],
+    ["awadalla2023","Awadalla, A., Gao, I., Gardner, J., et al. (2023). OpenFlamingo: An open-source framework for training large autoregressive vision-language models. <i>arXiv:2308.01390</i>.","https://arxiv.org/abs/2308.01390"],
+    ["bai2025","Bai, S., Chen, K., Liu, X., et al. (2025). Qwen2.5-VL technical report. <i>arXiv:2502.13923</i>.","https://arxiv.org/abs/2502.13923"],
+    ["liu2023","Liu, H., Li, C., Wu, Q., &amp; Lee, Y. J. (2023). Visual instruction tuning. <i>NeurIPS 2023</i>.","https://doi.org/10.52202/075280-1516"],
+    ["oquab2024","Oquab, M., Darcet, T., Moutakanni, T., et al. (2024). DINOv2: Learning robust visual features without supervision. <i>Transactions on Machine Learning Research</i>. arXiv:2304.07193.","https://arxiv.org/abs/2304.07193"],
+    ["lin2017","Lin, T.-Y., Goyal, P., Girshick, R., He, K., &amp; Dollár, P. (2017). Focal loss for dense object detection. <i>ICCV 2017</i>.","https://doi.org/10.1109/ICCV.2017.324"],
+    ["huang2024","Huang, W., Wang, J., &amp; Cong, G. (2024). Zero-shot urban function inference with street view images through prompting a pretrained vision-language model. <i>International Journal of Geographical Information Science</i>, 38(8), 1471–1492.","https://doi.org/10.1080/13658816.2024.2347322"],
+    ["cooper2024","Cooper, A., Kato, K., Shih, C.-H., et al. (2024). Rethinking VLMs and LLMs for image classification. <i>arXiv:2410.14690</i>.","https://arxiv.org/abs/2410.14690"],
+    ["wei2022","Wei, J., Wang, X., Schuurmans, D., et al. (2022). Chain-of-thought prompting elicits reasoning in large language models. <i>NeurIPS 2022</i>, 35, 24824–24837.","https://arxiv.org/abs/2201.11903"],
+    ["kojima2022","Kojima, T., Gu, S. S., Reid, M., Matsuo, Y., &amp; Iwasawa, Y. (2022). Large language models are zero-shot reasoners. <i>NeurIPS 2022</i>, 35, 22199–22213.","https://arxiv.org/abs/2205.11916"],
+    ["zhou2023","Zhou, Y., Muresanu, A. I., Han, Z., et al. (2023). Large language models are human-level prompt engineers. <i>ICLR 2023</i>.","https://arxiv.org/abs/2211.01910"]
+  ];
+  $("#refs").innerHTML=REFS.map(r=>`<li id="ref-${r[0]}">${r[1]} <a href="${r[2]}" target="_blank" rel="noopener">link</a></li>`).join("");
+  document.addEventListener("click",e=>{const a=e.target.closest("a.cite");if(!a)return;e.preventDefault();
+    const li=document.getElementById("ref-"+a.dataset.ref);if(!li)return;li.scrollIntoView({behavior:"smooth",block:"center"});
+    $$("#refs li.hit").forEach(x=>x.classList.remove("hit"));li.classList.add("hit");setTimeout(()=>li.classList.remove("hit"),2400)});
+
+  // MLP figure
+  (function(){
+    const d=$("#mlpFig"),X=[120,430,700];
+    const rows=[56,96,136,196,236,276].map(y=>y-10);
+    const inN=rows.map(y=>[X[0],y]),hidN=rows.map(y=>[X[1],y]),outN=[[X[2],136,"commercial","var(--c-commercial)"],[X[2],216,"non-commercial","var(--c-non)"]];
+    const link=(A,B)=>A.forEach(a=>B.forEach(b=>el("line",{x1:a[0]+9,y1:a[1],x2:b[0]-9,y2:b[1],stroke:"var(--muted)","stroke-opacity":.18,"stroke-width":.8},d)));
+    link(inN,hidN);link(hidN,outN);
+    inN.forEach(([x,y])=>el("circle",{cx:x,cy:y,r:9,fill:"var(--c-non)","fill-opacity":.85,stroke:"var(--bg)","stroke-width":1.5},d));
+    hidN.forEach(([x,y])=>el("circle",{cx:x,cy:y,r:9,fill:"var(--accent)","fill-opacity":.9,stroke:"var(--bg)","stroke-width":1.5},d));
+    outN.forEach(([x,y,t,c])=>{el("circle",{cx:x,cy:y,r:11,fill:c,stroke:"var(--bg)","stroke-width":1.5},d);el("text",{x:x+22,y:y+4,class:"lbl"},d).textContent=t});
+    const mid=(yA,yB)=>(yA+yB)/2;
+    [X[0],X[1]].forEach(x=>[mid(inN[2][1],inN[3][1])-8,mid(inN[2][1],inN[3][1]),mid(inN[2][1],inN[3][1])+8].forEach(y=>el("circle",{cx:x,cy:y,r:2,fill:"var(--muted)"},d)));
+    const cap=(x,a,b)=>{el("text",{x,y:300,"text-anchor":"middle",class:"lbl"},d).textContent=a;el("text",{x,y:316,"text-anchor":"middle"},d).textContent=b};
+    cap(X[0],"Input","1,024 numbers (DINOv2 CLS)");cap(X[1],"Hidden layer","512 units");cap(X[2],"Output","2 scores, then softmax");
+    const chip=(cx,y,w,t,soft)=>{el("rect",{x:cx-w/2,y,width:w,height:24,rx:5,fill:soft?"var(--accent-soft)":"var(--bg)",stroke:"var(--line)"},d);el("text",{x:cx,y:y+16,"text-anchor":"middle",style:"fill:var(--ink)"},d).textContent=t};
+    chip(X[1],6,250,"BatchNorm → ReLU → Dropout 0.3",true);
+    chip(275,326,200,"Linear 1,024 → 512 · 524,800 params",false);
+    chip(565,326,180,"Linear 512 → 2 · 1,026 params",false);
+  })();
 
   // decision table
   const g=id=>CONDS.find(c=>c.id===id);const v12=g("V12"),s02=g("S02"),v06=g("V06");
